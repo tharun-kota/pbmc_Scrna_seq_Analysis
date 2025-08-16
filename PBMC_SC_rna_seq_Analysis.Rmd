@@ -1,0 +1,363 @@
+---
+title: "PBMC Sc_rna seq analysis"
+output: html_document
+date: "2025-07-15"
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,   # show code
+  warning = FALSE,  # hide warnings
+  message = FALSE   # hide package messages (optional)
+)
+```
+
+
+```
+```{r}
+#install.packages("Seurat")
+#install.packages("patchwork")
+```
+
+```{r}
+setwd("/Users/tharun kota/OneDrive/Desktop/UCD/Trimester_3/Internship")
+```
+
+```{r}
+library(dplyr)
+library(Seurat)
+library(patchwork)
+
+# Load the PBMC dataset
+pbmc.data <- Read10X(data.dir = "pbmc3k_filtered_gene_bc_matrices/filtered_gene_bc_matrices/hg19/")
+# Initialize the Seurat object with the raw (non-normalized data).
+pbmc <- CreateSeuratObject(counts = pbmc.data, project = "pbmc3k", min.cells = 3, min.features = 200)
+pbmc
+```
+```{r}
+# The [[ operator can add columns to object metadata. This is a great place to stash QC stats
+pbmc[["percent.mt"]] <- PercentageFeatureSet(pbmc, pattern = "^MT-")
+```
+
+```{r}
+# Visualize QC metrics as a violin plot
+VlnPlot(pbmc, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+```
+```{r}
+# FeatureScatter is typically used to visualize feature-feature relationships, but can be used
+# for anything calculated by the object, i.e. columns in object metadata, PC scores etc.
+
+plot1 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "percent.mt")
+plot2 <- FeatureScatter(pbmc, feature1 = "nCount_RNA", feature2 = "nFeature_RNA")
+plot1 + plot2
+```
+```{r}
+pbmc <- subset(pbmc, subset = nFeature_RNA > 200 & nFeature_RNA < 2500 & percent.mt < 5)
+```
+
+```{r}
+pbmc <- NormalizeData(pbmc, normalization.method = "LogNormalize", scale.factor = 10000)
+```
+```{r}
+pbmc <- FindVariableFeatures(pbmc, selection.method = "vst", nfeatures = 2000)
+
+# Identify the 10 most highly variable genes
+top10 <- head(VariableFeatures(pbmc), 10)
+
+# plot variable features with and without labels
+plot1 <- VariableFeaturePlot(pbmc)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+plot1 + plot2
+```
+```{r}
+all.genes <- rownames(pbmc)
+pbmc <- ScaleData(pbmc, features = all.genes)
+```
+```{r}
+pbmc <- RunPCA(pbmc, features = VariableFeatures(object = pbmc))
+```
+```{r}
+VizDimLoadings(pbmc, dims = 1:2, reduction = "pca")
+```
+```{r}
+DimPlot(pbmc, reduction = "pca") + NoLegend()
+```
+```{r}
+DimHeatmap(pbmc, dims = 1:15, cells = 500, balanced = TRUE)
+```
+```{r}
+ElbowPlot(pbmc)
+```
+```{r}
+pbmc <- FindNeighbors(pbmc, dims = 1:10)
+pbmc <- FindClusters(pbmc, resolution = 0.5)
+```
+```{r}
+# Look at cluster IDs of the first 5 cells
+head(Idents(pbmc), 5)
+```
+```{r}
+pbmc <- RunUMAP(pbmc, dims = 1:10)
+```
+```{r}
+# note that you can set `label = TRUE` or use the LabelClusters function to help label
+# individual clusters
+DimPlot(pbmc, reduction = "umap")
+```
+```{r}
+saveRDS(pbmc, file = "pbmc_tutorial.rds")
+```
+
+```{r}
+# find markers for every cluster compared to all remaining cells, report only the positive
+# ones
+pbmc.markers <- FindAllMarkers(pbmc, only.pos = TRUE)
+pbmc.markers %>%
+    group_by(cluster) %>%
+    dplyr::filter(avg_log2FC > 1)
+```
+
+
+
+```{r}
+VlnPlot(pbmc, features = c("MS4A1", "CD79A"))
+```
+```{r}
+# you can plot raw counts as well
+VlnPlot(pbmc, features = c("NKG7", "PF4"), slot = "counts", log = TRUE)
+```
+
+```{r}
+FeaturePlot(pbmc, features = c("MS4A1", "GNLY", "CD3E", "CD14", "FCER1A", "FCGR3A", "LYZ", "PPBP",
+    "CD8A"))
+```
+```{r}
+pbmc.markers %>%
+    group_by(cluster) %>%
+    dplyr::filter(avg_log2FC > 1) %>%
+    slice_head(n = 10) %>%
+    ungroup() -> top10
+DoHeatmap(pbmc, features = top10$gene) + NoLegend()
+```
+```{r}
+new.cluster.ids <- c("Naive CD4 T", "CD14+ Mono", "Memory CD4 T", "B", "CD8 T", "FCGR3A+ Mono",
+    "NK", "DC", "Platelet")
+names(new.cluster.ids) <- levels(pbmc)
+pbmc <- RenameIdents(pbmc, new.cluster.ids)
+DimPlot(pbmc, reduction = "umap", label = TRUE, pt.size = 0.5) + NoLegend()
+```
+
+
+```{r}
+pbmc$annotations <- Idents(pbmc)
+```
+
+```{r}
+devtools::install_github("saeyslab/nichenetr")
+```
+
+```{r}
+library(nichenetr) # Please update to v2.0.4
+library(Seurat)
+library(SeuratObject)
+library(tidyverse)
+```
+ 
+ Nichenet Analysis
+
+```{r}
+seuratObj <- pbmc
+
+seuratObj@meta.data %>% head()
+
+seuratObj <- UpdateSeuratObject(seuratObj)
+```
+
+```{r}
+seuratObj <- alias_to_symbol_seurat(seuratObj, "human")
+```
+
+```{r}
+
+seuratObj@meta.data$celltype %>% table() 
+DimPlot(seuratObj, reduction = "umap")
+```
+
+```{r}
+lr_network <- readRDS("C:/Users/tharun kota/OneDrive/Desktop/UCD/Trimester_3/Internship/lr_network_human_21122021.rds")
+ligand_target_matrix <- readRDS("C:/Users/tharun kota/OneDrive/Desktop/UCD/Trimester_3/Internship/ligand_tf_matrix_nsga2r_final.rds")
+weighted_networks <- readRDS("C:/Users/tharun kota/OneDrive/Desktop/UCD/Trimester_3/Internship/weighted_networks_nsga2r_final.rds")
+
+lr_network <- lr_network %>% distinct(from, to)
+head(lr_network)
+
+ligand_target_matrix[1:5,1:5] # target genes in rows, ligands in columns
+
+
+head(weighted_networks$lr_sig) # interactions and their weights in the ligand-receptor + signaling network
+
+head(weighted_networks$gr) # interactions and their weights in the gene regulatory network
+
+```
+
+```{r}
+receiver = "Memory CD4 T"
+expressed_genes_receiver <- get_expressed_genes(receiver, seuratObj, pct = 0.05)
+```
+
+```{r}
+all_receptors <- unique(lr_network$to)  
+expressed_receptors <- intersect(all_receptors, expressed_genes_receiver)
+
+potential_ligands <- lr_network %>% filter(to %in% expressed_receptors) %>% pull(from) %>% unique()
+```
+
+```{r}
+sender_celltypes <- "CD14+ Mono"
+
+# Use lapply to get the expressed genes of every sender cell type separately here
+list_expressed_genes_sender <- sender_celltypes %>% unique() %>% lapply(get_expressed_genes, seuratObj, 0.05)
+expressed_genes_sender <- list_expressed_genes_sender %>% unlist() %>% unique()
+
+potential_ligands_focused <- intersect(potential_ligands, expressed_genes_sender) 
+
+# Also check 
+length(expressed_genes_sender)
+
+length(potential_ligands)
+
+length(potential_ligands_focused)
+
+```
+
+```{r}
+DE_table_receiver <-  FindMarkers(object = seuratObj,
+                                  ident.1 = receiver, ident.2 =       sender_celltypes,
+                                  min.pct = 0.05) %>% rownames_to_column("gene")
+
+geneset_oi <- DE_table_receiver %>% filter(p_val_adj <= 0.05 & abs(avg_log2FC) >= 0.25) %>% pull(gene)
+geneset_oi <- geneset_oi %>% .[. %in% rownames(ligand_target_matrix)]
+```
+
+```{r}
+background_expressed_genes <- expressed_genes_receiver %>% .[. %in% rownames(ligand_target_matrix)]
+
+length(background_expressed_genes)
+
+length(geneset_oi)
+
+```
+
+```{r}
+ligand_activities <- predict_ligand_activities(geneset = geneset_oi,
+                                               background_expressed_genes = background_expressed_genes,
+                                               ligand_target_matrix = ligand_target_matrix,
+                                               potential_ligands = potential_ligands)
+
+#ligand_activities <- ligand_activities %>% arrange(-aupr_corrected) %>% mutate(rank = rank(desc(aupr_corrected)))
+ligand_activities <- ligand_activities %>%
+  arrange(desc(aupr_corrected)) %>%
+  mutate(rank = rank(-aupr_corrected))
+ligand_activities
+```
+
+```{r}
+p_hist_lig_activity <- ggplot(ligand_activities, aes(x=aupr_corrected)) + 
+  geom_histogram(color="black", fill="darkorange")  + 
+  geom_vline(aes(xintercept=min(ligand_activities %>% top_n(30, aupr_corrected) %>% pull(aupr_corrected))),
+             color="red", linetype="dashed", size=1) + 
+  labs(x="ligand activity (PCC)", y = "# ligands") +
+  theme_classic()
+
+p_hist_lig_activity
+```
+
+
+```{r}
+best_upstream_ligands <- ligand_activities %>% top_n(30, aupr_corrected) %>% arrange(-aupr_corrected) %>% pull(test_ligand)
+```
+
+```{r}
+library(dplyr)
+```
+
+```{r}
+vis_ligand_aupr <- ligand_activities %>% filter(test_ligand %in% best_upstream_ligands) %>%
+  column_to_rownames("test_ligand") %>% dplyr::select(aupr_corrected) %>% arrange(aupr_corrected) %>% as.matrix(ncol = 1)
+
+(make_heatmap_ggplot(vis_ligand_aupr,
+                     "Prioritized ligands", "Ligand activity", 
+                     legend_title = "AUPR", color = "darkorange") + 
+    theme(axis.text.x.top = element_blank()))  
+```
+
+```{r}
+active_ligand_target_links_df <- best_upstream_ligands %>%
+  lapply(get_weighted_ligand_target_links,
+         geneset = geneset_oi,
+         ligand_target_matrix = ligand_target_matrix,
+         n = 100) %>%
+  bind_rows() %>% drop_na()
+
+nrow(active_ligand_target_links_df)
+head(active_ligand_target_links_df)
+```
+
+```{r}
+#increasing the cutoff will result in a denser or sparser heatmap, respectively.
+
+active_ligand_target_links <- prepare_ligand_target_visualization(
+  ligand_target_df = active_ligand_target_links_df,
+  ligand_target_matrix = ligand_target_matrix,
+  cutoff = 0.10) 
+
+nrow(active_ligand_target_links)
+head(active_ligand_target_links)
+
+order_ligands <- intersect(best_upstream_ligands, colnames(active_ligand_target_links)) %>% rev()
+order_targets <- active_ligand_target_links_df$target %>% unique() %>% intersect(rownames(active_ligand_target_links))
+
+vis_ligand_target <- t(active_ligand_target_links[order_targets,order_ligands])
+
+make_heatmap_ggplot(vis_ligand_target, "Prioritized ligands", "Predicted target genes",
+                    color = "purple", legend_title = "Regulatory potential") +
+  scale_fill_gradient2(low = "whitesmoke",  high = "purple")
+  
+
+# keep top 30 targets by column sum of regulatory potential
+keep_targets <- names(sort(colSums(vis_ligand_target), decreasing = TRUE))[1:30]
+vis_small <- vis_ligand_target[, keep_targets, drop = FALSE]
+
+make_heatmap_ggplot(
+  vis_small,
+  "Prioritized ligands",
+  "Top predicted target genes",
+  color = "purple",
+  legend_title = "Regulatory potential"
+) +
+  scale_fill_gradient2(low = "whitesmoke", high = "purple") +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 7),
+    axis.text.y = element_text(size = 8)
+  )
+```
+
+```{r}
+ligand_receptor_links_df <- get_weighted_ligand_receptor_links(
+  best_upstream_ligands, expressed_receptors,
+  lr_network, weighted_networks$lr_sig) 
+```
+
+```{r}
+vis_ligand_receptor_network <- prepare_ligand_receptor_visualization(
+  ligand_receptor_links_df,
+  best_upstream_ligands,
+  order_hclust = "both") 
+
+(make_heatmap_ggplot(t(vis_ligand_receptor_network), 
+                     y_name = "Ligands", x_name = "Receptors",  
+                     color = "mediumvioletred", legend_title = "Prior interaction potential"))
+```
+
+
