@@ -74,4 +74,4 @@ if (!requireNamespace("nichenetr", quietly = TRUE)) {
     remotes::install_github("saeyslab/nichenetr")
 }
 ```
-[View Diagram](https://htmlpreview.github.io/?https://github.com/yourusername/your-repo/blob/main/presentation.html)
+[View Interactive Diagram](https://yourusername.github.io/your-repo/presentation.html)
