@@ -74,4 +74,6 @@ if (!requireNamespace("nichenetr", quietly = TRUE)) {
     remotes::install_github("saeyslab/nichenetr")
 }
 ```
-
+<p align="center">
+  <img src="./presentation.html" alt="Project Overview" width="800"/>
+</p>
