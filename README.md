@@ -74,4 +74,4 @@ if (!requireNamespace("nichenetr", quietly = TRUE)) {
     remotes::install_github("saeyslab/nichenetr")
 }
 ```
-[View Interactive Diagram]([https://yourusername.github.io/your-repo/presentation.html](https://tharun-kota.github.io/pbmc_Scrna_seq_Analysis/))
+[https://yourusername.github.io/your-repo/presentation.html](https://tharun-kota.github.io/pbmc_Scrna_seq_Analysis/)
